@@ -7,8 +7,17 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
 
-// Serve static files from /public
+// Serve from /public OR root — works either way
+const fs = require('fs');
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(__dirname));
+app.get('/', (req, res) => {
+  const pub = path.join(__dirname, 'public', 'index.html');
+  const root = path.join(__dirname, 'index.html');
+  if (fs.existsSync(pub)) res.sendFile(pub);
+  else if (fs.existsSync(root)) res.sendFile(root);
+  else res.status(404).send('Upload index.html to root or public/ folder.');
+});
 
 // ─── GAME STATE ───────────────────────────────────────────────
 const rooms = new Map(); // roomCode -> Room

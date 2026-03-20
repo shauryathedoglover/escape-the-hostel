@@ -1,0 +1,16 @@
+{
+  "name": "escape-the-hostel-3d",
+  "version": "1.0.0",
+  "description": "Escape the Hostel 3D - Multiplayer Horror Game",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.14.2",
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

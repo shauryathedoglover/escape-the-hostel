@@ -122,18 +122,56 @@ input.linp:focus{border-color:#cc8800}
 .ebtn:hover{background:#22cc55;color:#000}
 .ebtn.red{border-color:#cc2200;color:#cc2200}.ebtn.red:hover{background:#cc2200;color:#fff}
 
-/* MOBILE */
-#mob-ui{display:none;position:fixed;bottom:0;left:0;right:0;padding:6px 10px 10px;pointer-events:none;z-index:50}
-#dpad{pointer-events:all;display:grid;grid-template:44px 44px 44px / 44px 44px 44px;gap:3px;float:left}
-#dpad button{font-size:1.2rem;background:rgba(0,0,0,.65);border:2px solid #222;color:#aab;
-  display:flex;align-items:center;justify-content:center;cursor:pointer;border-radius:4px}
-#dpad button:active{background:rgba(180,0,0,.25);border-color:#cc2200}
-#mob-look{pointer-events:all;position:absolute;left:150px;right:90px;top:0;bottom:0}
-#mob-right{pointer-events:all;float:right;display:flex;flex-direction:column;gap:5px;align-items:flex-end}
-.mob-btn{font-family:'VT323',monospace;font-size:.9rem;background:rgba(0,0,0,.65);border:2px solid #224;
-  color:#aab;cursor:pointer;border-radius:4px;padding:8px 12px}
-.mob-btn:active{background:rgba(0,150,0,.2);border-color:#22aa44}
-@media(max-width:680px){#mob-ui{display:block}}
+/* MOBILE DUAL JOYSTICK */
+#mob-ui{
+  display:none;position:fixed;inset:0;pointer-events:none;z-index:50;
+}
+/* Left joystick zone — left half of screen */
+#joy-left-zone{
+  pointer-events:all;position:absolute;
+  left:0;bottom:0;width:50%;height:55%;
+}
+/* Right joystick zone — right half */
+#joy-right-zone{
+  pointer-events:all;position:absolute;
+  right:0;bottom:0;width:50%;height:55%;
+}
+/* Joystick base ring */
+.joy-base{
+  position:absolute;width:110px;height:110px;
+  border-radius:50%;background:rgba(255,255,255,0.06);
+  border:2px solid rgba(255,255,255,0.18);
+  transform:translate(-50%,-50%);pointer-events:none;
+  display:none;
+}
+/* Joystick thumb knob */
+.joy-knob{
+  position:absolute;width:44px;height:44px;
+  border-radius:50%;background:rgba(255,255,255,0.22);
+  border:2px solid rgba(255,255,255,0.5);
+  transform:translate(-50%,-50%);pointer-events:none;
+  display:none;
+}
+/* Action buttons — top right area */
+#mob-actions{
+  pointer-events:all;position:absolute;
+  right:12px;top:12px;
+  display:flex;flex-direction:column;gap:8px;align-items:flex-end;
+}
+.mob-act-btn{
+  font-family:'VT323',monospace;font-size:1rem;
+  background:rgba(0,0,0,.7);border:2px solid #334;
+  color:#aab;cursor:pointer;border-radius:6px;
+  padding:8px 14px;letter-spacing:.05em;
+}
+.mob-act-btn:active{background:rgba(0,120,0,.3);border-color:#22aa44;color:#22ff55}
+/* Sprint indicator on left zone */
+#mob-sprint-hint{
+  position:absolute;bottom:8px;left:50%;transform:translateX(-50%);
+  font-family:'VT323',monospace;font-size:.85rem;color:rgba(255,255,255,.3);
+  pointer-events:none;letter-spacing:.1em;
+}
+@media(max-width:900px){#mob-ui{display:block}}
 </style>
 </head>
 <body>
@@ -250,19 +288,23 @@ input.linp:focus{border-color:#cc8800}
   </div>
 </div>
 
-<!-- MOBILE -->
+<!-- MOBILE DUAL JOYSTICK UI -->
 <div id="mob-ui">
-  <div id="dpad">
-    <button style="grid-area:1/2" ontouchstart="kd('w')" ontouchend="ku('w')">▲</button>
-    <button style="grid-area:2/1" ontouchstart="kd('a')" ontouchend="ku('a')">◀</button>
-    <button style="grid-area:2/3" ontouchstart="kd('d')" ontouchend="ku('d')">▶</button>
-    <button style="grid-area:3/2" ontouchstart="kd('s')" ontouchend="ku('s')">▼</button>
-    <button style="grid-area:2/2;font-size:.7rem" ontouchstart="kd('sprint')" ontouchend="ku('sprint')">RUN</button>
+  <!-- Left zone: movement joystick -->
+  <div id="joy-left-zone">
+    <div class="joy-base" id="joy-left-base"></div>
+    <div class="joy-knob" id="joy-left-knob"></div>
+    <div id="mob-sprint-hint">HOLD = SPRINT</div>
   </div>
-  <div id="mob-look"></div>
-  <div id="mob-right">
-    <button class="mob-btn" ontouchstart="interact()">USE [E]</button>
-    <button class="mob-btn" onclick="toggleMap()">MAP</button>
+  <!-- Right zone: look joystick -->
+  <div id="joy-right-zone">
+    <div class="joy-base" id="joy-right-base"></div>
+    <div class="joy-knob" id="joy-right-knob"></div>
+  </div>
+  <!-- Action buttons -->
+  <div id="mob-actions">
+    <button class="mob-act-btn" id="mob-use-btn">USE [E]</button>
+    <button class="mob-act-btn" onclick="toggleMap()">MAP</button>
   </div>
 </div>
 
@@ -507,16 +549,158 @@ document.addEventListener('mousemove', e => {
   G.mouseDx += e.movementX;
 });
 
-// Mobile touch look
-let tlStart = null;
-const mobLook = document.getElementById('mob-look');
-mobLook.addEventListener('touchstart', e => { tlStart = e.touches[0].clientX; }, {passive:true});
-mobLook.addEventListener('touchmove', e => {
-  if (!G || tlStart===null) return;
-  G.mouseDx += (e.touches[0].clientX - tlStart) * 2;
-  tlStart = e.touches[0].clientX;
-}, {passive:true});
-mobLook.addEventListener('touchend', () => { tlStart = null; });
+// ═══════════════════════════════════════
+// DUAL JOYSTICK TOUCH SYSTEM
+// ═══════════════════════════════════════
+const JOY_RADIUS = 52;   // max stick travel px
+const JOY_DEAD   = 6;    // dead zone px
+const LOOK_SENS  = 5.5;  // look sensitivity multiplier
+
+// Joystick state
+const joyL = { active:false, id:-1, ox:0, oy:0, dx:0, dy:0 };
+const joyR = { active:false, id:-1, ox:0, oy:0, dx:0, dy:0 };
+
+const zoneL = document.getElementById('joy-left-zone');
+const zoneR = document.getElementById('joy-right-zone');
+const baseL = document.getElementById('joy-left-base');
+const knobL = document.getElementById('joy-left-knob');
+const baseR = document.getElementById('joy-right-base');
+const knobR = document.getElementById('joy-right-knob');
+
+function showJoy(base, knob, ox, oy) {
+  base.style.left = ox+'px'; base.style.top = oy+'px'; base.style.display='block';
+  knob.style.left = ox+'px'; knob.style.top = oy+'px'; knob.style.display='block';
+}
+function hideJoy(base, knob) {
+  base.style.display='none'; knob.style.display='none';
+}
+function moveKnob(knob, ox, oy, dx, dy) {
+  const len = Math.sqrt(dx*dx+dy*dy);
+  const clamped = Math.min(len, JOY_RADIUS);
+  const nx = len>0 ? ox + dx/len*clamped : ox;
+  const ny = len>0 ? oy + dy/len*clamped : oy;
+  knob.style.left = nx+'px'; knob.style.top = ny+'px';
+}
+
+// Left zone — movement
+zoneL.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (!joyL.active) {
+      const r = zoneL.getBoundingClientRect();
+      joyL.active=true; joyL.id=t.identifier;
+      joyL.ox=t.clientX-r.left; joyL.oy=t.clientY-r.top;
+      joyL.dx=0; joyL.dy=0;
+      showJoy(baseL,knobL,joyL.ox,joyL.oy);
+      break;
+    }
+  }
+}, {passive:false});
+
+zoneL.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier===joyL.id) {
+      const r = zoneL.getBoundingClientRect();
+      joyL.dx = t.clientX-r.left-joyL.ox;
+      joyL.dy = t.clientY-r.top -joyL.oy;
+      moveKnob(knobL,joyL.ox,joyL.oy,joyL.dx,joyL.dy);
+    }
+  }
+}, {passive:false});
+
+zoneL.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier===joyL.id) {
+      joyL.active=false; joyL.dx=0; joyL.dy=0;
+      hideJoy(baseL,knobL);
+    }
+  }
+}, {passive:false});
+zoneL.addEventListener('touchcancel', e => {
+  joyL.active=false; joyL.dx=0; joyL.dy=0; hideJoy(baseL,knobL);
+}, {passive:false});
+
+// Right zone — look
+zoneR.addEventListener('touchstart', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (!joyR.active) {
+      const r = zoneR.getBoundingClientRect();
+      joyR.active=true; joyR.id=t.identifier;
+      joyR.ox=t.clientX-r.left; joyR.oy=t.clientY-r.top;
+      joyR.dx=0; joyR.dy=0;
+      showJoy(baseR,knobR,joyR.ox,joyR.oy);
+      break;
+    }
+  }
+}, {passive:false});
+
+zoneR.addEventListener('touchmove', e => {
+  e.preventDefault();
+  for (const t of e.changedTouches) {
+    if (t.identifier===joyR.id) {
+      const r = zoneR.getBoundingClientRect();
+      joyR.dx = t.clientX-r.left-joyR.ox;
+      joyR.dy = t.clientY-r.top -joyR.oy;
+      moveKnob(knobR,joyR.ox,joyR.oy,joyR.dx,joyR.dy);
+    }
+  }
+}, {passive:false});
+
+zoneR.addEventListener('touchend', e => {
+  for (const t of e.changedTouches) {
+    if (t.identifier===joyR.id) {
+      joyR.active=false; joyR.dx=0; joyR.dy=0;
+      hideJoy(baseR,knobR);
+    }
+  }
+}, {passive:false});
+zoneR.addEventListener('touchcancel', e => {
+  joyR.active=false; joyR.dx=0; joyR.dy=0; hideJoy(baseR,knobR);
+}, {passive:false});
+
+// USE button
+document.getElementById('mob-use-btn').addEventListener('touchstart', e => {
+  e.preventDefault(); interact();
+}, {passive:false});
+
+// Apply joystick values each frame inside updatePlayer
+function applyJoysticks(dt) {
+  if (!G) return;
+  // Left stick → movement (replaces WASD on mobile)
+  if (joyL.active) {
+    const len = Math.sqrt(joyL.dx*joyL.dx + joyL.dy*joyL.dy);
+    if (len > JOY_DEAD) {
+      const norm = Math.min(len, JOY_RADIUS) / JOY_RADIUS; // 0..1
+      // Sprint if pushed to outer 70% of joystick
+      G.isSprinting = norm > 0.7 && G.sprint > 0;
+      const spd = (G.isSprinting ? 3.8 : G.speedBoost > 0 ? 3.2 : 2.0) * dt * norm;
+      const angle = Math.atan2(joyL.dy, joyL.dx);
+      // Move relative to facing direction
+      const relAngle = angle - Math.PI/2; // joystick up = forward
+      const mx = Math.sin(G.pa + relAngle) * spd;
+      const my = -Math.cos(G.pa + relAngle) * spd;
+      const r = tryMove(G.px, G.py, mx, my, G.floor);
+      if (r.x !== G.px || r.y !== G.py) {
+        G.px = r.x; G.py = r.y;
+        G.footstepTimer -= dt;
+        if (G.footstepTimer <= 0) {
+          playFootstep();
+          G.footstepTimer = G.isSprinting ? .28 : .44;
+        }
+      }
+    }
+  }
+  // Right stick → look (yaw only)
+  if (joyR.active) {
+    const len = Math.sqrt(joyR.dx*joyR.dx + joyR.dy*joyR.dy);
+    if (len > JOY_DEAD) {
+      const norm = Math.min(len, JOY_RADIUS) / JOY_RADIUS;
+      G.pa += (joyR.dx / JOY_RADIUS) * LOOK_SENS * dt * (1 + norm);
+    }
+  }
+}
 
 // ═══════════════════════════════════════
 // INPUT
@@ -561,23 +745,31 @@ function tryMove(px, py, dx, dy, floor) {
 let sendTimer = 0;
 function updatePlayer(dt) {
   const k = G.keys;
-  G.isSprinting = k.sprint && G.sprint > 0;
-  const spd = (G.isSprinting ? 3.8 : G.speedBoost > 0 ? 3.2 : 2.0) * dt;
 
+  // Mouse look (desktop pointer lock)
   if (G.mouseDx) { G.pa += G.mouseDx * 0.0025; G.mouseDx = 0; }
 
-  let dx = 0, dy = 0;
-  if (k.w) { dx += Math.cos(G.pa)*spd; dy += Math.sin(G.pa)*spd; }
-  if (k.s) { dx -= Math.cos(G.pa)*spd; dy -= Math.sin(G.pa)*spd; }
-  const moving = dx !== 0 || dy !== 0;
-
-  if (moving) {
-    const r = tryMove(G.px, G.py, dx, dy, G.floor);
-    G.px = r.x; G.py = r.y;
-    G.footstepTimer -= dt;
-    if (G.footstepTimer <= 0) { playFootstep(); G.footstepTimer = G.isSprinting ? .28 : .44; }
+  // Keyboard movement (desktop)
+  const hasKeyInput = k.w || k.s || k.a || k.d;
+  if (hasKeyInput) {
+    G.isSprinting = k.sprint && G.sprint > 0;
+    const spd = (G.isSprinting ? 3.8 : G.speedBoost > 0 ? 3.2 : 2.0) * dt;
+    let dx = 0, dy = 0;
+    if (k.w) { dx += Math.cos(G.pa)*spd; dy += Math.sin(G.pa)*spd; }
+    if (k.s) { dx -= Math.cos(G.pa)*spd; dy -= Math.sin(G.pa)*spd; }
+    if (dx !== 0 || dy !== 0) {
+      const r = tryMove(G.px, G.py, dx, dy, G.floor);
+      G.px = r.x; G.py = r.y;
+      G.footstepTimer -= dt;
+      if (G.footstepTimer <= 0) { playFootstep(); G.footstepTimer = G.isSprinting ? .28 : .44; }
+    }
   }
-  if (G.isSprinting && moving) G.sprint = Math.max(0, G.sprint - dt*.4);
+
+  // Touch joysticks (mobile) — handles its own movement + look
+  applyJoysticks(dt);
+
+  // Sprint stamina shared between keyboard and joystick
+  if (G.isSprinting) G.sprint = Math.max(0, G.sprint - dt*.4);
   else G.sprint = Math.min(1, G.sprint + dt*.25);
   document.getElementById('sprint-fill').style.width = (G.sprint*100) + '%';
 
